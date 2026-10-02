@@ -1,0 +1,10 @@
+{
+  "repository": "https://github.com/code-yeongyu/lazycodex",
+  "commit": "7e7902737a09ed3ccdd396d94b01fae9b4837550",
+  "path": "plugins/omo/components/lsp-daemon/dist/cli.js",
+  "sha256": "e43097efe595350b1e573f83b1f5ee1a5fb955ba22cb01ed67dee1adb0d3502d",
+  "license": "MIT",
+  "licensePath": "LICENSE",
+  "targetBehavior": "oh-my-openagent LTS a997a730430b823d49e5ace9e87284402305b280",
+  "exceptions": ["No install_decision tool; agent writes declined_servers JSON", "No format tool from newer upstream"]
+}

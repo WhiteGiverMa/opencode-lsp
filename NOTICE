@@ -1,0 +1,15 @@
+This package includes a modified, pinned LSP runtime distributed by
+code-yeongyu/lazycodex under the MIT License, Copyright (c) 2026 Yeongyu Kim.
+The upstream license is included in vendor/LICENSE. Exact provenance and
+SHA-256 are recorded in vendor/provenance.json.
+
+Upstream vendored bytes remain unchanged. scripts/build.ts generates the
+adapted runtime: seven analysis/status tools, independent configuration and
+daemon identity, read-only refusal guidance, and optional Godot TCP bridging.
+No source or prompt text from the SUL-only OMO checkout is incorporated.
+
+The original LSP package traces its runtime to codex-lsp and pi-lsp-client.
+Those projects are MIT-licensed; pi-lsp-client's NOTICE documents the
+original author's MIT relicensing. This package preserves the license of
+the actual pinned distribution it consumes, rather than assuming all OMO
+monorepo sources are MIT.

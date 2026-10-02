@@ -1,0 +1,20 @@
+import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
+import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const repo = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
+const root = await mkdtemp(join(tmpdir(), "standalone-lsp-package-"));
+const archive = join(repo, "opencode-lsp-0.1.0.tgz");
+const evidence = join(repo, ".omo/evidence/20261002-feature09");
+await mkdir(evidence, { recursive: true });
+execFileSync("tar", ["-xzf", archive, "-C", root]);
+const entry = join(root, "package/bin/opencode-lsp.js");
+const output = execFileSync("node", [join(repo, "scripts/qa/node-smoke.mjs"), entry, join(evidence, "packed-node.json")], { encoding: "utf8", timeout: 120000 });
+const env = { ...process.env, LSP_QA_ENTRY: entry, LSP_QA_EVIDENCE: join(evidence, "packed") };
+execFileSync("bun", [join(repo, "scripts/qa/mcp.ts")], { env, stdio: "inherit", timeout: 180000 });
+execFileSync("bun", [join(repo, "scripts/qa/hosts.ts")], { env, stdio: "inherit", timeout: 300000 });
+await writeFile(join(evidence, "package.json"), JSON.stringify({ root, entry, sha256: createHash("sha256").update(await readFile(archive)).digest("hex"), noRuntimeDependencies: true, nodeSmoke: JSON.parse(output) }, null, 2));
+console.log(`Packed artifact passed independently at ${root}`);
