@@ -18,7 +18,7 @@ export function configureRuntime(env: NodeJS.ProcessEnv = process.env, cwd = pro
   ].join(delimiter);
   const manifest: RuntimeManifest = JSON.parse(readFileSync(new URL("./runtime-manifest.json", import.meta.url), "utf8"));
   const godotEndpoint = [env.OPENCODE_LSP_GODOT_HOST?.trim() || "127.0.0.1", Number(env.OPENCODE_LSP_GODOT_PORT?.trim() || "6005"), env.OPENCODE_LSP_GODOT_PROJECT_URI?.trim() || null];
-  const configDomain = createHash("sha256").update(JSON.stringify([userConfig, refusals, process.execPath, env.PATH, godotEndpoint])).digest("hex").slice(0, 16);
+  const configDomain = createHash("sha256").update(JSON.stringify([userConfig, refusals, process.execPath, env.PATH, godotEndpoint, manifest.version, manifest.fingerprint])).digest("hex").slice(0, 16);
   const cli = fileURLToPath(new URL("./cli.js", import.meta.url));
   const runtimeEnv = {
     LSP_TOOLS_MCP_CWD: project,

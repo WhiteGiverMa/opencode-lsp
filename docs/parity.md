@@ -21,8 +21,9 @@ the SUL-only monorepo Core source. Vendor/runtime.js is byte-for-byte original.
 - Independent authenticated shared daemon, lazy client startup, 60-second
   initialization timeout, 5-minute client idle lifetime, 30-minute daemon idle
   lifetime, parent/stdio watchdogs, request cancellation and safe owned cleanup.
-- Absolute paths may select another workspace; relative paths may not escape
-  request cwd. Nearest workspace markers select the project boundary. The newer
+- Absolute and relative parent paths may select another workspace. The launch
+  cwd only resolves relative inputs; nearest target workspace markers select
+  the project boundary. The newer
   distribution's six-client admission cap is removed to match LTS behavior.
 
 ## Explicit user exception
@@ -41,6 +42,13 @@ refusals are read, not mutated. Legacy allowed records do not authorize installs
 - Each user-config path/refusal-path/runtime/PATH/Godot-endpoint domain is isolated. Within a
   warm domain, configuration changes do not retroactively restart an existing
   client. That is documented, not silently treated as a hot reload.
+- Version and runtime fingerprint are part of the domain itself, so a new
+  artifact does not reap an older backend still used by other clients.
+- Advertised TS command diagnostics use request-correlated syntax/semantic/
+  suggestion replies, shared flights with independent deadlines/cancellation,
+  and a final file snapshot check. Deduplicated empty pushes cannot block or
+  falsely satisfy this branch. Silence is not clean, including directory
+  aggregation. General versionless push provenance is not claimed as universal.
 - Godot is an additional attach-only builtin, with `project.godot` root marker,
   bounded TCP bridge and optional explicit URI mapping. This is not a claim that
   the original OMO LSP shipped a native GDScript server.
