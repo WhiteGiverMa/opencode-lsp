@@ -77,6 +77,22 @@ accepted directly by the MCP, but are not duplicated in `tools/list`.
 There is deliberately **no `lsp_install_decision` or `lsp_format` tool**, including
 their unprefixed names. The original seven analysis/status schemas are retained.
 
+### Target locations and diagnostic freshness
+
+Existing targets can be outside the launch directory, including `../`, absolute
+paths and `/mnt/` mounts. Relative paths resolve from the request cwd; the
+nearest target workspace marker determines the language client and rename
+boundary. Files require appropriate filesystem permissions and an available
+language server. Server edits escaping that target workspace, symlink escapes
+and overlapping edits remain rejected.
+
+Push-only TS servers advertising `typescript.tsserverRequest` use correlated
+syntax, semantic and suggestion diagnostic replies. This handles servers that
+suppress repeated empty publications. File snapshots are rechecked before
+return, and shared queries preserve each caller's cancellation and deadline.
+Silence, stale or malformed replies are not clean results; directory failures
+remain visible. Other servers retain their advertised diagnostic protocol.
+
 ## Language servers and refusal records
 
 Language servers are not bundled or auto-installed. Tools remain available when
