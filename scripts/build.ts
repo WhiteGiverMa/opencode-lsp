@@ -12,7 +12,7 @@ const runtime = patchRuntime(original);
 await mkdir(new URL("dist/", root), { recursive: true });
 await writeFile(new URL("dist/vendor-runtime.js", root), runtime);
 const build = await Bun.build({
-  entrypoints: ["src/cli.ts", "src/install-guidance.ts", "src/godot-bridge.ts"].map(path => fileURLToPath(new URL(path, root))),
+  entrypoints: ["src/cli.ts", "src/install-guidance.ts", "src/godot-bridge.ts", "src/typescript-diagnostics.ts"].map(path => fileURLToPath(new URL(path, root))),
   outdir: fileURLToPath(new URL("dist/", root)),
   target: "node",
   format: "esm",
@@ -21,7 +21,7 @@ const build = await Bun.build({
   } }],
 });
 if (!build.success) throw new AggregateError(build.logs, "Build failed");
-const fingerprints = await Promise.all(["cli.js", "install-guidance.js", "godot-bridge.js"].map(path => readFile(new URL(`dist/${path}`, root), "utf8")));
+const fingerprints = await Promise.all(["cli.js", "install-guidance.js", "godot-bridge.js", "typescript-diagnostics.js"].map(path => readFile(new URL(`dist/${path}`, root), "utf8")));
 await writeFile(new URL("dist/runtime-manifest.json", root), JSON.stringify({ version: pkg.version, fingerprint: hash([runtime, ...fingerprints].join("\n")).slice(0, 16), upstream: provenance.commit }, null, 2) + "\n");
 console.log(`Built ${pkg.name}@${pkg.version} from ${provenance.commit}`);
 

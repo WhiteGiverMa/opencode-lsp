@@ -40,6 +40,31 @@ export function patchRuntime(original: string): string {
     }
     return start;
   }`);
+  replaceOnce('    this.setDiagnosticPullSupported(supportsDiagnosticPull(result?.capabilities));',
+    '    this.setDiagnosticPullSupported(supportsDiagnosticPull(result?.capabilities));\n    this.typescriptDiagnosticSupported = supportsTypeScriptDiagnostics(result?.capabilities);');
+  replaceOnce('    this.diagnosticPullErrors = [];',
+    '    this.diagnosticPullErrors = [];\n    this.typescriptDiagnostics = new TypeScriptDiagnosticsRequester(this.sendRequest.bind(this), () => this.timerProvider.now(), this.server.initialization);');
+  replaceOnce('      const push = this.documents.resolvePushDiagnostics(snapshot);', `      if (this.typescriptDiagnosticSupported && !this.isDiagnosticPullSupported()) {
+        try {
+          const items = await this.typescriptDiagnostics.query(snapshot, deadlineAt, signal);
+          await this.openFile(absPath);
+          signal?.throwIfAborted();
+          if (this.timerProvider.now() >= deadlineAt) return this.freshnessTimeout(absPath);
+          if (!this.documents.isCurrentSnapshot(snapshot)) continue;
+          return { items };
+        } catch (error) {
+          if (error instanceof TypeScriptDiagnosticsTimeout || error instanceof LspRequestTimeoutError) return this.freshnessTimeout(absPath);
+          throw error;
+        }
+      }
+      const push = this.documents.resolvePushDiagnostics(snapshot);`);
+  replaceOnce(`        if (!this.isDiagnosticPullSupported() && snapshot.publishGeneration === 0) {
+          const cached = this.documents.getPullCache(snapshot);
+          return { items: cached === null ? [] : [...cached.diagnostics] };
+        }
+`, '');
+  replaceOnce('          const result = await client.diagnostics(file, options.signal);',
+    '          const result = await client.diagnostics(file, options.signal);\n          if (result.transientError) throw new Error(result.transientError.message);');
   const toolsStart = source.indexOf("  {\n    name: \"format\",", source.indexOf("var LSP_MCP_TOOLS = ["));
   const toolsEnd = source.indexOf("\n];", toolsStart);
   if (toolsStart < 0 || toolsEnd < toolsStart) throw new Error("Vendor tool list drift");
@@ -62,6 +87,7 @@ export function patchRuntime(original: string): string {
   const exports = "runMcpStdioProxy, runDaemon, daemonPaths, probeDaemon, pingDaemon, readAuthToken, authEnvelope, createStandaloneMcpRequestContext, callToolViaDaemon, LSP_MCP_TOOLS";
   return '// Adapted from the pinned MIT runtime; see NOTICE and vendor/provenance.json.\n' +
     'import { missingServerGuidance, declinedServers } from "./install-guidance.js";\n' +
+    'import { supportsTypeScriptDiagnostics, TypeScriptDiagnosticsRequester, TypeScriptDiagnosticsTimeout } from "./typescript-diagnostics.js";\n' +
     'import { fileURLToPath as standaloneFilePath } from "node:url";\n' +
     'import { resolve as standaloneResolve, isAbsolute as standaloneIsAbsolute, dirname as standaloneDirname, join as standaloneJoin } from "node:path";\n' +
     'import { existsSync as standaloneExists } from "node:fs";\n' +
