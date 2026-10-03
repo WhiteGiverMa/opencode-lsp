@@ -20,19 +20,14 @@ export function patchRuntime(original: string): string {
   replaceFunction("formatNotInstalled", "function formatNotInstalled(result) { return missingServerGuidance(result, lspRequestContext().installDecisionsPath); }");
   replaceFunction("loadInstallDecision", "function loadInstallDecision(serverId) { return declinedServers(lspRequestContext().installDecisionsPath).includes(serverId) ? { decision: 'declined' } : undefined; }");
   replaceFunction("resolveReadablePathInsideContext", `function resolveReadablePathInsideContext(filePath) {
-    const root = contextCwd();
-    const target = canonicalizeExistingOrNearestAncestor(standaloneResolve(root, filePath));
-    if (!standaloneIsAbsolute(filePath) && !isPathInside(root, target)) throw new LspInvalidPathError("Relative LSP paths must remain inside request cwd: " + filePath);
-    return target;
+    return canonicalizeExistingOrNearestAncestor(standaloneResolve(contextCwd(), filePath));
   }`);
   replaceFunction("resolvePathInsideContext", "function resolvePathInsideContext(filePath) { return resolveReadablePathInsideContext(filePath); }");
   replaceFunction("findWorkspaceRoot", `function findWorkspaceRoot(filePath) {
     const target = resolveReadablePathInsideContext(filePath);
     const start = isDirectoryPath(target) ? target : standaloneDirname(target);
-    const boundary = contextCwd();
-    const confined = isPathInside(boundary, target);
     let cursor = start;
-    while (!confined || isPathInside(boundary, cursor)) {
+    while (true) {
       if (WORKSPACE_MARKERS.some(marker => standaloneExists(standaloneJoin(cursor, marker)))) return cursor;
       const parent = standaloneDirname(cursor);
       if (parent === cursor) break;
@@ -89,7 +84,7 @@ export function patchRuntime(original: string): string {
     'import { missingServerGuidance, declinedServers } from "./install-guidance.js";\n' +
     'import { supportsTypeScriptDiagnostics, TypeScriptDiagnosticsRequester, TypeScriptDiagnosticsTimeout } from "./typescript-diagnostics.js";\n' +
     'import { fileURLToPath as standaloneFilePath } from "node:url";\n' +
-    'import { resolve as standaloneResolve, isAbsolute as standaloneIsAbsolute, dirname as standaloneDirname, join as standaloneJoin } from "node:path";\n' +
+    'import { resolve as standaloneResolve, dirname as standaloneDirname, join as standaloneJoin } from "node:path";\n' +
     'import { existsSync as standaloneExists } from "node:fs";\n' +
     source.replace(/^#!.*\n/, "") + `\nexport { ${exports} };\n`;
 }
