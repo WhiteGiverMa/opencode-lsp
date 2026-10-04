@@ -37,6 +37,13 @@ refusals are read, not mutated. Legacy allowed records do not authorize installs
 ## Packaging adaptations and newer upstream differences
 
 - Extra upstream `format`/`lsp_format` is not registered or callable.
+- Unconfigured common document formats (Markdown/MDX, plain text, reStructuredText,
+  AsciiDoc, Org, RTF, PDF, Word and ODT) return explicit skipped feedback across
+  file tools and document-only directory diagnostics, with `skipped: true`,
+  `reason: "document_file"` and availability kind `not_applicable`. This is not
+  a clean diagnostic result or a missing dependency. Explicitly configured
+  document servers retain normal execution and missing-command guidance;
+  source/configuration formats retain their existing lookup feedback.
 - Configuration defaults are OpenCode/standalone rather than Codex; runtime
   state and socket names are independently namespaced and version-fingerprinted.
 - Each user-config path/refusal-path/runtime/PATH/Godot-endpoint domain is isolated. Within a

@@ -49,6 +49,80 @@ describe("configuration and refusals", () => {
 		await client.close();
 	});
 
+	it("skips common unconfigured documents instead of requesting an LSP", async () => {
+		const sandbox = await newSandbox();
+		const { client } = await startSession(sandbox);
+		for (const extension of [".md", ".MD", ".markdown", ".mdown", ".mkd", ".mkdn", ".mdx", ".txt", ".text", ".rst", ".rest", ".adoc", ".asciidoc", ".org", ".rtf", ".pdf", ".doc", ".docx", ".odt"]) {
+			const file = await writeProjectFile(sandbox, `document${extension}`, "Document content\n");
+			const result = await client.call("diagnostics", { filePath: file });
+			expect(result.isError ?? false).toBe(false);
+			expect(detailsOf(result)["skipped"]).toBe(true);
+			expect(detailsOf(result)["reason"]).toBe("document_file");
+			expect(detailsOf(result)["error"]).toBeUndefined();
+			expect(detailsOf(result)["errorKind"]).toBeUndefined();
+			expect(availabilityOf(result)["kind"]).toBe("not_applicable");
+			expect(availabilityOf(result)["extension"]).toBe(extension);
+			expect(client.resultText(result)).toMatch(/document.*normally.*require LSP/i);
+			expect(client.resultText(result)).not.toMatch(/no LSP server configured|configure a custom server|ASK THE USER|No diagnostics found/i);
+		}
+		expect(await readSpawnedPids(sandbox)).toEqual([]);
+		expect(existsSync(sandbox.refusalsPath)).toBe(false);
+		await client.close();
+	});
+
+	it("uses the document feedback across file tools and document-only directories", async () => {
+		const sandbox = await newSandbox();
+		const file = await writeProjectFile(sandbox, "docs/guide.md", "# Guide\n");
+		const { client } = await startSession(sandbox);
+		for (const [name, args] of [
+			["goto_definition", { filePath: file, line: 1, character: 0 }],
+			["find_references", { filePath: file, line: 1, character: 0 }],
+			["symbols", { filePath: file, scope: "document" }],
+			["symbols", { filePath: file, scope: "workspace", query: "Guide" }],
+			["prepare_rename", { filePath: file, line: 1, character: 0 }],
+			["rename", { filePath: file, line: 1, character: 0, newName: "renamed" }],
+			["diagnostics", { filePath: join(sandbox.project, "docs") }],
+		] as const) {
+			const result = await client.call(name, args);
+			expect(result.isError ?? false).toBe(false);
+			expect(detailsOf(result)["skipped"]).toBe(true);
+			expect(detailsOf(result)["errorKind"]).toBeUndefined();
+			expect(client.resultText(result)).toMatch(/LSP check skipped/i);
+		}
+		const invalid = await client.call("symbols", { filePath: file, scope: "workspace" });
+		expect(detailsOf(invalid)["errorKind"]).toBe("missing_query");
+		expect(detailsOf(invalid)["skipped"]).toBeUndefined();
+		expect(await readFile(file, "utf8")).toBe("# Guide\n");
+		expect(await readSpawnedPids(sandbox)).toEqual([]);
+		await client.close();
+	});
+
+	it("still uses an explicitly configured document language server", async () => {
+		const sandbox = await newSandbox();
+		await writeWorkspaceMarker(sandbox);
+		await writeUserConfig(sandbox, { lsp: { mock: mockServer(sandbox, { extensions: [".md"] }) } });
+		const file = await writeProjectFile(sandbox, "checked.md", "ERROR_MARKER\n");
+		const { client } = await startSession(sandbox);
+		const result = await client.call("diagnostics", { filePath: file });
+		expect(detailsOf(result)["totalDiagnostics"]).toBe(1);
+		expect(detailsOf(result)["skipped"]).toBeUndefined();
+		expect(await readSpawnedPids(sandbox)).toHaveLength(1);
+		await client.close();
+	});
+
+	it("still reports a missing explicitly configured document server", async () => {
+		const sandbox = await newSandbox();
+		await writeUserConfig(sandbox, { lsp: { mock: { ...MISSING_COMMAND, extensions: [".md"] } } });
+		const file = await writeProjectFile(sandbox, "checked.md", "# Guide\n");
+		const { client } = await startSession(sandbox);
+		const result = await client.call("diagnostics", { filePath: file });
+		expect(detailsOf(result)["errorKind"]).toBe("missing_dependency");
+		expect(availabilityOf(result)["kind"]).toBe("not_installed");
+		expect(detailsOf(result)["skipped"]).toBeUndefined();
+		expect(client.resultText(result)).toMatch(/not installed/i);
+		await client.close();
+	});
+
 	it("guides on a missing command and never writes a refusal file", async () => {
 		const sandbox = await newSandbox();
 		await writeUserConfig(sandbox, { lsp: { mock: MISSING_COMMAND } });

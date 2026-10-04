@@ -19,6 +19,22 @@ export function patchRuntime(original: string): string {
   replaceFunction("main", "");
   replaceFunction("formatNotInstalled", "function formatNotInstalled(result) { return missingServerGuidance(result, lspRequestContext().installDecisionsPath); }");
   replaceFunction("loadInstallDecision", "function loadInstallDecision(serverId) { return declinedServers(lspRequestContext().installDecisionsPath).includes(serverId) ? { decision: 'declined' } : undefined; }");
+  replaceOnce('throw new LspServerLookupError(formatServerLookupError(serverResult));',
+    'throw new LspServerLookupError(formatServerLookupError(serverResult), serverResult);');
+  // ponytail: Extend only this document whitelist; configured servers keep normal lookup behavior.
+  replaceOnce('function missingDependencyResult(error, details) {', `function missingDependencyResult(error, details) {
+    if (error instanceof LspServerLookupError && error.lookup?.status === "not_configured" && [
+      ".md", ".markdown", ".mdown", ".mkd", ".mkdn", ".mdx", ".txt", ".text",
+      ".rst", ".rest", ".adoc", ".asciidoc", ".org", ".rtf", ".pdf", ".doc", ".docx", ".odt"
+    ].includes(error.lookup.extension.toLowerCase())) {
+      const extension = error.lookup.extension;
+      return text("LSP check skipped for document format (" + extension + "). Documents of this format do not normally require LSP. Review the content and formatting directly or use document-specific validation; no language server needs to be installed or configured.", {
+        ...details,
+        skipped: true,
+        reason: "document_file",
+        availability: { kind: "not_applicable", extension }
+      });
+    }`);
   replaceFunction("resolveReadablePathInsideContext", `function resolveReadablePathInsideContext(filePath) {
     return canonicalizeExistingOrNearestAncestor(standaloneResolve(contextCwd(), filePath));
   }`);
