@@ -5,16 +5,24 @@
 Independent MIT LSP tools for **OpenCode v2 and v1**. One local stdio MCP server,
 seven analysis/status tools, lazy language-server startup, safe workspace edits,
 and an isolated shared daemon. No OMO install, source checkout, private Core
-packages, model provider, or runtime download is needed.
+packages, or model provider is required to run the MCP. The pinned upstream
+runtime and its MIT attribution are in `vendor/`.
 
-This is an independent project, not built by or affiliated with the OpenCode
-team. The pinned upstream runtime and its MIT attribution are in `vendor/`.
+## What you get
 
-The product is standalone local software exposing a **stdio MCP server**, not
-an OpenCode plugin. Its `.tgz` package contains the built runtime, CLI, setup
-skill and documentation. It does not install OpenCode, Node.js or individual
-language servers, and installation does not register a systemd service or start
-a background process.
+**This is standalone local MCP software, not an OpenCode plugin.** After
+installing, point OpenCode's `mcp` configuration at the start command.
+
+| Piece | Purpose |
+| --- | --- |
+| stdio MCP server | Brings diagnostics, definitions, references, symbols, and rename to OpenCode |
+| CLI | Start the MCP, print config, check servers, verify diagnostics, shut down its daemon |
+| `lsp-setup` skill | Guides an agent through server setup, install approval, and refusal records |
+| `.tgz` package | Ships the built runtime, CLI, skill, docs, and license files |
+
+The package does not bundle OpenCode, Node.js, or individual language servers.
+When a server is missing, the tools stay visible and return an installation hint
+with authorization guidance.
 
 ## Install a built artifact
 
@@ -32,11 +40,13 @@ node /path/to/package/bin/opencode-lsp.js config v1
 ```
 
 Merge the printed `mcp` and `skills` entries into your OpenCode configuration,
-preserving existing entries. These commands print JSON; they never edit your
+preserving existing entries. These commands print JSON and never edit your
 configuration. Restart OpenCode yourself if its current instance has already
-loaded configuration. The generated v2 configuration uses `mcp.servers.lsp` and
-`codemode:false`; v1 uses `mcp.lsp`. Both expose `lsp_*` tools. The setup skill is
-loaded from the installed package, not from OMO.
+loaded configuration.
+
+- v2 uses `mcp.servers.lsp` with `codemode:false`, exposing `lsp_*` tools.
+- v1 uses `mcp.lsp`.
+- The setup skill loads from the installed package, not from OMO.
 
 Example MCP-only configuration (replace the absolute paths):
 
@@ -54,11 +64,13 @@ Example MCP-only configuration (replace the absolute paths):
 }
 ```
 
-That example is native **v2**, not v1. Use `config v1` for its different shape.
-Do not use `npx` or `bunx` for each language-server command when you want a strict
-no-download runtime: those launchers can themselves fetch missing packages.
+v1 uses a different shape; run `config v1` for that.
 
-## Tools
+If you want a strictly no-download runtime, do not configure language-server
+commands as `npx` or `bunx`: those launchers can fetch missing packages
+themselves.
+
+## The seven tools
 
 | OpenCode tool | Behavior |
 | --- | --- |
@@ -74,8 +86,8 @@ no-download runtime: those launchers can themselves fetch missing packages.
 unprefixed; OpenCode prefixes the server name `lsp`. Legacy `lsp_*` aliases are
 accepted directly by the MCP, but are not duplicated in `tools/list`.
 
-There is deliberately **no `lsp_install_decision` or `lsp_format` tool**, including
-their unprefixed names. The original seven analysis/status schemas are retained.
+The tool set is deliberately small: there is no `lsp_install_decision` or
+`lsp_format`.
 
 ### Target locations and diagnostic freshness
 
@@ -87,29 +99,34 @@ language server. Server edits escaping that target workspace, symlink escapes
 and overlapping edits remain rejected.
 
 Push-only TS servers advertising `typescript.tsserverRequest` use correlated
-syntax, semantic and suggestion diagnostic replies. This handles servers that
-suppress repeated empty publications. File snapshots are rechecked before
-return, and shared queries preserve each caller's cancellation and deadline.
-Silence, stale or malformed replies are not clean results; directory failures
-remain visible. Other servers retain their advertised diagnostic protocol.
+syntax, semantic and suggestion diagnostic replies, so servers that suppress
+repeated empty publications cannot stall a request. File snapshots are rechecked
+before return, and shared queries preserve each caller's cancellation and
+deadline. Missing, stale or malformed replies are surfaced as failures;
+directory diagnostics list the files that failed.
 
 ## Language servers and refusal records
 
-Language servers are not bundled or auto-installed. Tools remain available when
-a server is missing. The result reports its executable and an installation hint;
-an agent must ask permission when installation is needed. After approval the
-agent installs, checks the executable and retries.
+Language servers are not bundled or auto-installed. When a server is missing,
+the tool output names the executable, gives an installation hint, and includes
+the absolute path of the refusal record.
 
-If the user explicitly refuses, the output instructs the agent to read the
-absolute refusal JSON path and append the server ID, preserving other fields:
+The flow:
+
+1. When a task genuinely needs LSP, the agent asks the user for approval first.
+2. On explicit approval, the agent runs the platform-appropriate install
+   command, checks the executable, and retries the tool.
+3. On explicit refusal, the agent reads the JSON file named in the output and
+   appends the server ID to `declined_servers`, preserving other fields.
 
 ```json
 {"declined_servers":["typescript","rust"]}
 ```
 
-The MCP reads this file on each missing-server result and never writes it. A
-previous refusal suppresses repeat questions, not existing installed tools.
-Malformed refusal data is reported and left unchanged. No answer is not refusal.
+The MCP backend reads this file whenever it produces a missing-server hint and
+never writes it. A recorded refusal suppresses repeat questions without
+disabling servers that are already installed. Malformed refusal data is
+reported and left unchanged.
 
 Default user directory:
 
@@ -146,10 +163,12 @@ custom IDs. Put executable/environment overrides and custom servers in the
 ## Godot
 
 The builtin `gdscript` bridge connects to the editor's TCP LSP at
-`127.0.0.1:6005`. Open the **intended project** in Godot first; the integration
-never launches or terminates the editor. Connection failure is bounded, with
-instructions to open/check the editor. `lsp_status` reports bridge installation,
-not proof that Godot is running.
+`127.0.0.1:6005`. Open the **intended project** in Godot first; the bridge never
+launches or terminates the editor.
+
+Connection failure is bounded and tells you to check the editor and port.
+`lsp_status` reports whether the bridge is available, not whether Godot is
+running.
 
 Use USER configuration for a different endpoint:
 
@@ -169,10 +188,11 @@ Use USER configuration for a different endpoint:
 For Windows Godot accessed from WSL, configure the reachable host and optionally
 `OPENCODE_LSP_GODOT_PROJECT_URI`, such as `file:///G:/dev/my-project`. It maps the
 local workspace to that explicit editor-side root in both directions, including
-WorkspaceEdit URI keys, without rewriting source text. Use distinct explicit
-ports for multiple projects. There is no port guessing, editor launch,
-automatic reconnect, or mutation replay. Shutdown/exit is handled by the bridge
-locally, not sent to the borrowed editor service.
+WorkspaceEdit URI keys, without rewriting source text.
+
+Use distinct explicit ports for multiple projects. The bridge does no port
+guessing, editor launch, or automatic reconnect. LSP `shutdown`/`exit` is
+handled by the bridge locally and is not sent to the external editor service.
 
 ## Lifecycle, check and shutdown
 
@@ -182,45 +202,51 @@ node /path/to/package/bin/opencode-lsp.js verify src/example.ts
 node /path/to/package/bin/opencode-lsp.js shutdown
 ```
 
-`doctor` checks executable availability and active clients, not server health.
-`verify` executes a real diagnostics request and prints its structured result;
-exit 0 means the roundtrip succeeded, not necessarily zero code diagnostics.
+`doctor` checks executable availability and active clients. `verify` executes a
+real diagnostics request and prints its structured result; exit 0 means the
+roundtrip succeeded, not necessarily zero code diagnostics.
 
-Language servers start on the first analysis call, not on workspace scanning or
-file edits. Requests share a client per workspace/server in an authenticated,
-versioned per-user daemon. Idle clients expire after about 5 minutes; the daemon
-expires after 30 minutes without connections or clients. Closing one MCP does
-not terminate clients still available to another MCP. Runtime/config identity
-is included in the private daemon domain so unrelated installations do not
-reuse stale code. Changes to a warm server's command/env/initialization require
-an explicit `shutdown` before retry; refusal records are read per request.
+Processes come in two layers, and **not all of them exit with OpenCode**:
 
-`shutdown` authenticates to this package's own endpoint and stops that daemon
-and its owned language-server processes. It does not kill Godot or an OMO
-daemon. Do not run shutdown while another client needs that shared instance.
+- The **stdio MCP proxy** is started by OpenCode and follows its backend MCP
+  connection: a normal disconnect or backend exit closes the proxy. Closing a
+  window attached to a still-running `opencode serve` backend may not close
+  the MCP connection.
+- The **shared LSP daemon** keeps cached clients independently and does not stop
+  just because one proxy exits. Other clients keep using it.
 
-The stdio MCP proxy follows OpenCode's backend MCP connection: normal disconnect
-or backend exit closes the proxy. A detached shared daemon does not immediately
-exit with one proxy; it retains warm clients until idle or explicit shutdown.
-Closing a UI attached to a still-running `opencode serve` backend does not
-necessarily close its MCP connection. Run `shutdown` with the same configuration
-environment to stop the corresponding shared daemon.
+Language servers start on the first real analysis call, not on workspace
+scanning or file edits. Requests for the same workspace and server share a
+client. Idle clients are reclaimed after about 5 minutes; the daemon exits after
+30 minutes with no connections and no clients.
+
+Version, runtime fingerprint, and configuration identity all participate in
+daemon isolation. Different builds live in different configuration domains, so
+upgrades never reclaim backends still used by old clients. To change a running
+server's command, environment, or initialization options, first close its users,
+then `shutdown` in the same configuration environment and retry; refusal
+records are read per request.
+
+Running `shutdown` in the **same configuration environment** authenticates and
+stops the corresponding daemon and the language-server processes it owns;
+Godot and OMO daemons are unaffected. Do not run it while other clients still
+need that shared instance.
 
 ## Disable, remove, or replace OMO
 
 - v2: set `mcp.servers.lsp.disabled:true`.
 - v1: set `mcp.lsp.enabled:false`.
-- To fully remove, remove the MCP entry and this package's skill source, then
-  shut down its daemon if no other client uses it. No shell startup/service unit
-  is installed.
-- In OMO, `disabled_mcps:["lsp"]` removes **all** merged MCPs named `lsp`, not
+- To fully remove, delete the MCP entry and this package's skill source; once no
+  other client uses it, shut down the daemon. No shell startup entries or system
+  services are installed.
+- OMO's `disabled_mcps:["lsp"]` removes **every** merged MCP named `lsp`, not
   just its builtin. Do not combine that flag with a same-name replacement.
-  An explicit user `mcp.lsp` entry overrides OMO's builtin command without
+- An explicit user `mcp.lsp` entry overrides OMO's builtin command without
   starting the old MCP. If `lsp` is already disabled, remove that actual entry
   from the OMO configuration layer before applying a same-name replacement.
-  No migration or live configuration change is performed by this package.
+  This package never migrates or edits live configuration.
 
-## Build and evidence
+## Build and verification
 
 ```sh
 bun install
@@ -230,11 +256,24 @@ bun test
 bun pm pack
 ```
 
-The pinned vendor bytes ship in source control; normal builds are offline after
-development dependencies are installed. `bun run vendor` is an explicit
-maintainer-only download with SHA-256 verification, not an install hook.
+The pinned vendor bytes ship in source control; `dist/` and `.tgz` are build
+artifacts and are not committed. Installing a built package needs neither Bun,
+development dependencies, nor the OMO repository.
 
-Read [the parity contract](docs/parity.md) for preserved behavior, deliberate
-differences and verification limits. Local QA evidence is under
-`.omo/evidence/20261002-feature09/`. No claim is made that every language server
-or every editor integration has been live-tested.
+Once development dependencies are installed, normal builds work offline.
+`bun run vendor` is an explicit maintainer-only download with SHA-256
+verification; it is not an install hook and never runs during normal use.
+
+See [the parity contract](docs/parity.md) for preserved behavior, deliberate
+differences, and verification limits.
+
+Verified so far: MCP integration on stock OpenCode v2.0.21 / v1.18.34 with the
+seven-tool surface, and real TypeScript operations through the standalone MCP.
+The Godot bridge is verified against a TCP fixture and has not yet been
+exercised with a real editor; on Windows only the Node package checks have been
+run.
+
+## License
+
+MIT, see [LICENSE](LICENSE). OpenCode is an independent project; this project
+is not affiliated with or endorsed by it.

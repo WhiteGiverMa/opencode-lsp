@@ -4,7 +4,7 @@
 
 面向 **OpenCode v2 和 v1** 的独立 MIT LSP 工具。通过一个本地 stdio MCP 服务器，提供七个分析与状态工具、按需启动语言服务器、安全应用工作区修改，以及独立的共享 daemon。
 
-不依赖 OMO 的安装、源码、私有 Core 包或代理配置，也不需要模型供应商才能运行 MCP。本项目独立于 OpenCode 官方团队；固定版本的上游运行时及 MIT 许可说明保留在 `vendor/`。
+不依赖 OMO 的安装、源码、私有 Core 包或代理配置，也不需要模型供应商即可运行 MCP。固定版本的上游运行时及 MIT 许可说明保留在 `vendor/`。
 
 ## 产物是什么
 
@@ -17,7 +17,7 @@
 | `lsp-setup` 技能 | 指导 agent 配置语言服务器、申请安装批准及处理拒绝记录 |
 | `.tgz` 安装包 | 打包已经构建好的运行时、CLI、技能、文档和许可文件 |
 
-安装包**不安装 OpenCode、Node.js 或各语言服务器**，不注册 systemd 服务，安装动作本身也不会启动后台进程。语言服务器缺失时，工具仍可见，并返回安装提示和授权指导。
+安装包不包含 OpenCode、Node.js 或各语言服务器。语言服务器缺失时，工具仍可见，并返回安装提示和授权指导。
 
 ## 安装与接入
 
@@ -33,7 +33,7 @@ node /path/to/package/bin/opencode-lsp.js config v2
 node /path/to/package/bin/opencode-lsp.js config v1
 ```
 
-把打印出的 `mcp` 和 `skills` 条目合并到 OpenCode 配置中，保留已有条目。以上命令只输出 JSON，**不会修改用户配置**。已经加载配置的 OpenCode 实例需要由用户重启后生效。
+把打印出的 `mcp` 和 `skills` 条目合并到 OpenCode 配置中，保留已有条目。以上命令只输出 JSON，不修改配置。已经加载配置的 OpenCode 实例需要重启后生效。
 
 - v2 使用 `mcp.servers.lsp`，并设置 `codemode:false`，直接暴露 `lsp_*` 工具。
 - v1 使用 `mcp.lsp`。
@@ -55,7 +55,7 @@ node /path/to/package/bin/opencode-lsp.js config v1
 }
 ```
 
-这不是 v1 配置。需要 v1 时，使用 `config v1` 生成对应格式。
+v1 的格式不同，请使用 `config v1` 生成。
 
 如果要求运行时严格不下载软件，不要把每个语言服务器的命令配置成 `npx` 或 `bunx`：这些启动器本身可能下载缺失的包。
 
@@ -73,13 +73,13 @@ node /path/to/package/bin/opencode-lsp.js config v1
 
 `line` 从 1 开始，`character` 从 0 开始，使用 UTF-16 位置。MCP 协议中的工具名没有 `lsp_` 前缀；OpenCode 根据服务器注册名 `lsp` 添加前缀。直接调用 MCP 时也接受旧的 `lsp_*` 别名，但不会在 `tools/list` 中重复列出。
 
-按需求，**不提供 `lsp_install_decision` 或 `lsp_format`**，其无前缀名称和别名也不可调用。保留七个分析／状态工具的接口。
+工具集有意保持精简：不提供 `lsp_install_decision` 或 `lsp_format`。
 
 ### 文件位置与诊断新鲜度
 
 目标可以位于当前目录之外，包括相对父路径 `../`、绝对路径和 `/mnt/` 挂载目录。相对路径以请求工作目录为基准解析；语言客户端与重命名边界按目标附近的工作区标记确定，不把启动目录当成访问围栏。文件必须存在、当前用户有相应权限，并且对应语言服务器可用。重命名仍拒绝逃出目标工作区、通过符号链接越界或重叠的服务端修改。
 
-对声明支持 `typescript.tsserverRequest` 的推送型 TypeScript 服务，诊断使用关联请求取得语法、语义及建议结果，避免“空结果变为空结果”被服务器省略推送后超时。返回前重新核对文件版本；共享查询保留每个调用者独立的取消和截止时间。没有响应、过期响应或格式错误都不等于“没有错误”，目录诊断也会列出失败文件。其他语言继续使用其声明的诊断协议，不能从服务器沉默推断代码干净。
+对声明支持 `typescript.tsserverRequest` 的推送型 TypeScript 服务，诊断使用关联请求取得语法、语义及建议结果，避免服务器省略空结果推送导致超时。返回前重新核对文件版本；共享查询保留每个调用者独立的取消和截止时间。没有响应、过期响应或格式错误都会显式呈现，目录诊断也会列出失败文件。
 
 ## 语言服务器与拒绝安装记录
 
@@ -95,7 +95,7 @@ node /path/to/package/bin/opencode-lsp.js config v1
 {"declined_servers":["typescript","rust"]}
 ```
 
-MCP 后端在产生缺失提示时读取该文件，**从不写入这个决定文件**。已有拒绝记录会抑制重复询问，不会禁用已经安装的服务器。格式错误会明确报告并保留原文件。用户没有回答，不等于拒绝。
+MCP 后端在产生缺失提示时读取该文件，自身不写入。已有拒绝记录会抑制重复询问，不影响已经安装的服务器。格式错误会明确报告并保留原文件。
 
 默认用户目录：
 
@@ -125,9 +125,9 @@ MCP 后端在产生缺失提示时读取该文件，**从不写入这个决定�
 
 ## Godot
 
-内置的 `gdscript` 桥接程序连接编辑器的 TCP LSP，默认为 `127.0.0.1:6005`。请先在 Godot 中打开**正确的项目**。它不会启动或终止编辑器。
+内置的 `gdscript` 桥接程序连接编辑器的 TCP LSP，默认为 `127.0.0.1:6005`。请先在 Godot 中打开**正确的项目**；桥接程序不会启动或终止编辑器。
 
-连接失败会在有限时间内返回，并提示检查编辑器及端口。`lsp_status` 只报告桥接程序是否可用，不能证明 Godot 正在运行。
+连接失败会在有限时间内返回，并提示检查编辑器及端口。`lsp_status` 只报告桥接程序是否可用，不代表 Godot 正在运行。
 
 修改端点时，请使用用户配置：
 
@@ -146,7 +146,7 @@ MCP 后端在产生缺失提示时读取该文件，**从不写入这个决定�
 
 从 WSL 访问 Windows Godot 时，应配置可达的主机地址；必要时设置 `OPENCODE_LSP_GODOT_PROJECT_URI`，例如 `file:///G:/dev/my-project`。它在本地工作区和明确指定的编辑器项目根 URI 之间进行双向映射，包括 WorkspaceEdit 的 URI 键，但不改写源代码文本。
 
-多个项目应使用明确、不同的端口。没有端口猜测、编辑器自动启动、自动重连或修改重放。LSP 的 `shutdown`／`exit` 在桥接边界本地处理，不会发送给外部编辑器服务。
+多个项目应使用明确、不同的端口。桥接程序不做端口猜测、编辑器自动启动或自动重连。LSP 的 `shutdown`／`exit` 在桥接边界本地处理，不会发送给外部编辑器服务。
 
 ## 启停、检查与清理
 
@@ -156,7 +156,7 @@ node /path/to/package/bin/opencode-lsp.js verify src/example.ts
 node /path/to/package/bin/opencode-lsp.js shutdown
 ```
 
-`doctor` 检查可执行程序的可用性和活动客户端，不是服务器健康探测。`verify` 发起真实诊断请求并输出结构化结果；退出码 0 表示请求成功，不一定表示代码没有诊断问题。
+`doctor` 检查可执行程序的可用性和活动客户端。`verify` 发起真实诊断请求并输出结构化结果；退出码 0 表示请求成功，不一定表示代码没有诊断问题。
 
 进程分为两层，**不是所有进程都与 OpenCode 同时退出**：
 
@@ -167,7 +167,7 @@ node /path/to/package/bin/opencode-lsp.js shutdown
 
 版本、运行时指纹和配置标识参与 daemon 隔离。不同构建位于不同配置域，升级不会回收仍被旧客户端使用的后端。已经启动的服务器若修改命令、环境或初始化选项，需要先关闭其使用者，再在同一配置环境中 `shutdown` 后重试；拒绝记录则按请求读取。
 
-在**同一配置环境**下运行 `shutdown`，会认证并关闭对应的 daemon 及其拥有的语言服务器进程，不会杀掉 Godot 或 OMO daemon。其他客户端仍需要该共享实例时，不要执行此命令。
+在**同一配置环境**下运行 `shutdown`，会认证并关闭对应的 daemon 及其拥有的语言服务器进程，不影响 Godot 或 OMO daemon。其他客户端仍需要该共享实例时，不要执行此命令。
 
 ## 禁用、移除与替换 OMO
 
@@ -175,7 +175,7 @@ node /path/to/package/bin/opencode-lsp.js shutdown
 - v1：设置 `mcp.lsp.enabled:false`。
 - 完全移除时，删除 MCP 配置条目及本包的技能来源；确认没有其他客户端使用后，再关闭 daemon。本包不安装 shell 启动项或系统服务。
 - OMO 的 `disabled_mcps:["lsp"]` 会删除最终合并后的**所有同名 MCP**，不只删除其内置服务器。不要同时使用这个禁用项和一个同名的替代配置。
-- 显式的用户 `mcp.lsp` 配置可以覆盖 OMO 内置命令而不启动旧 MCP。如果配置层已经禁用了 `lsp`，需要先移除实际的禁用条目，再接入同名替代。本包不会自动迁移或修改真实配置。
+- 显式的用户 `mcp.lsp` 配置可以覆盖 OMO 内置命令而不启动旧 MCP。如果配置层已经禁用了 `lsp`，需要先移除实际的禁用条目，再接入同名替代。本包不迁移、不修改真实配置。
 
 ## 从源码构建与验收
 
@@ -183,14 +183,18 @@ node /path/to/package/bin/opencode-lsp.js shutdown
 bun install
 bun run build
 bun run typecheck
-bun run test
+bun test
 bun pm pack
 ```
 
 Git 仓库保存源码和固定的上游字节；`dist/` 与 `.tgz` 是构建产物，不提交到 Git。安装已经构建的包不需要 Bun、开发依赖或 OMO 仓库。
 
-开发依赖安装完成后，正常构建无需联网。`bun run vendor` 是维护者显式执行的下载命令，带 SHA-256 校验，不是安装钩子，也不会在普通运行时执行。
+开发依赖安装完成后，正常构建无需联网。`bun run vendor` 是维护者显式执行的下载命令，带 SHA-256 校验，不会在普通安装或运行时执行。
 
-保留的行为、明确差异和验证边界见[行为对齐说明](docs/parity.md)。本地验收证据位于 `.omo/evidence/20261002-feature09/`，不随 Git 提交。
+保留的行为、明确差异和验证边界见[行为对齐说明](docs/parity.md)。
 
-已验证裸 OpenCode v2.0.21／v1.18.34 的 MCP 接入及七工具目录，以及独立 MCP 的真实 TypeScript 操作。宿主接入与直接 MCP 执行是两类证据，不冒称已观察到模型会话里的原生工具调用。Godot 使用 TCP fixture 验证，不能替代真实编辑器验收；Windows Node 的安装包检查也不等于 Windows OpenCode 完整验收。没有宣称所有语言服务器和编辑器版本都已实测。
+已验证裸 OpenCode v2.0.21／v1.18.34 的 MCP 接入及七工具目录，以及独立 MCP 的真实 TypeScript 操作。Godot 桥接使用 TCP fixture 验证，尚未在真实编辑器中验收；Windows 侧只验证了 Node 安装包检查。
+
+## 许可
+
+MIT，见 [LICENSE](LICENSE)。OpenCode 是独立项目，本项目与其无隶属或背书关系。
