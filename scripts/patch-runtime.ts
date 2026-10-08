@@ -21,6 +21,61 @@ export function patchRuntime(original: string): string {
   replaceFunction("loadInstallDecision", "function loadInstallDecision(serverId) { return declinedServers(lspRequestContext().installDecisionsPath).includes(serverId) ? { decision: 'declined' } : undefined; }");
   replaceOnce('throw new LspServerLookupError(formatServerLookupError(serverResult));',
     'throw new LspServerLookupError(formatServerLookupError(serverResult), serverResult);');
+  replaceOnce(`    this.connection.onClose(() => {
+      this.processExited = true;
+    });`, `    this.connection.onClose(() => {
+      this.processExited = true;
+      this.connection.dispose();
+    });`);
+  replaceOnce(`    try {
+      await this.writeMessage(message);
+      requestWritten = true;
+      if (cancelAfterWrite)
+        await rejectAfterCancelWrite?.();
+    } catch (error) {
+      if (settled)
+        return responsePromise;
+      const pending = this.pendingRequests.get(key);
+      if (pending) {
+        pending.cleanup();
+        this.pendingRequests.delete(key);
+      }
+      throw error;
+    }
+    return responsePromise;`, `    const written = this.writeMessage(message).then(async () => {
+      requestWritten = true;
+      if (cancelAfterWrite)
+        await rejectAfterCancelWrite?.();
+      return responsePromise;
+    }, (error) => {
+      if (settled)
+        return responsePromise;
+      const pending = this.pendingRequests.get(key);
+      if (pending) {
+        pending.cleanup();
+        this.pendingRequests.delete(key);
+      }
+      throw error;
+    });
+    return Promise.race([responsePromise, written]);`);
+  replaceOnce('    this.writer.off("error", this.handleStreamError);', `    if (this.writer.closed) {
+      this.writer.off("error", this.handleStreamError);
+    } else {
+      this.writer.once("close", () => this.writer.off("error", this.handleStreamError));
+    }`);
+  replaceOnce(`      if (this.processExited || this.proc && this.proc.exitCode !== null) {
+        throw new LspProcessExitedError(this.server.id, this.root, this.proc?.exitCode ?? null, this.stderrBuffer.slice(-10).join(\`
+\`) || undefined);
+      }`, `      const writeSideFailure = error instanceof Error && "code" in error && error.code === "EPIPE";
+      if (this.processExited || writeSideFailure || this.proc && this.proc.exitCode !== null) {
+        if (this.proc && this.proc.exitCode === null && this.proc.exited) {
+          await Promise.race([this.proc.exited, new Promise((resolve) => {
+            setTimeout(resolve, 100);
+          })]);
+        }
+        throw new LspProcessExitedError(this.server.id, this.root, this.proc?.exitCode ?? null, this.stderrBuffer.slice(-10).join(\`
+\`) || undefined);
+      }`);
   // ponytail: Extend only this document whitelist; configured servers keep normal lookup behavior.
   replaceOnce('function missingDependencyResult(error, details) {', `function missingDependencyResult(error, details) {
     if (error instanceof LspServerLookupError && error.lookup?.status === "not_configured" && [

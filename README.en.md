@@ -111,6 +111,14 @@ Language servers are not bundled or auto-installed. When a server is missing,
 the tool output names the executable, gives an installation hint, and includes
 the absolute path of the refusal record.
 
+`status`/`doctor` reports whether the configured executable can be found, not
+whether a launcher's underlying virtualenv or dependencies can actually start.
+If the server exits during initialization or its LSP connection closes, pending
+requests fail promptly with the server name, available exit code and original
+stderr instead of waiting for the MCP timeout. Ordinary crashes are not all
+classified as missing installations, and no refusal record is written. A truly
+missing executable still follows the approval flow below.
+
 The flow:
 
 1. When a task genuinely needs LSP, the agent asks the user for approval first.
